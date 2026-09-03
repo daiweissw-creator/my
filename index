@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>9.4-6温州 货品盘点系统</title>
+    <meta name="referrer" content="no-referrer">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f6f8;
+            color: #333;
+            padding: 12px;
+            padding-bottom: 80px;
+            -webkit-text-size-adjust: 100%;
+        }
+        .header {
+            position: sticky;
+            top: 0;
+            background: #ffffff;
+            padding: 12px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            margin-bottom: 12px;
+            z-index: 100;
+        }
+        .title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .stats-summary {
+            display: flex;
+            gap: 8px;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+        .stat-badge {
+            flex: 1;
+            padding: 6px;
+            background: #f1f5f9;
+            border-radius: 6px;
+            text-align: center;
+            color: #475569;
+        }
+        .stat-badge b {
+            font-size: 14px;
+            display: block;
+            color: #1e293b;
+        }
+        .stat-badge.warn b { color: #e11d48; }
+        .stat-badge.success b { color: #059669; }
+
+        .search-box {
+            width: 100%;
+            padding: 10px 14px;
+            font-size: 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            outline: none;
+            background: #f8fafc;
+            margin-bottom: 8px;
+        }
+        .filter-tabs {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+        }
+        .tab-btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            background: #f1f5f9;
+            border: none;
+            border-radius: 20px;
+            color: #64748b;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .tab-btn.active {
+            background: #3b82f6;
+            color: #fff;
+            font-weight: 600;
+        }
+
+        /* 盘点卡片 */
+        .card-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .card {
+            background: #ffffff;
+            border-radius: 10px;
+            padding: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border-left: 4px solid #cbd5e1;
+            position: relative;
+        }
+        .card.diff-less { border-left-color: #f43f5e; background: #fff1f2; } /* 盘亏 */
+        .card.diff-more { border-left-color: #10b981; background: #f0fdf4; } /* 盘盈 */
+        .card.diff-equal { border-left-color: #3b82f6; } /* 正常 */
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .card-thumb {
+            width: 56px;
+            height: 56px;
+            border-radius: 6px;
+            object-fit: cover;
+            background-color: #f1f5f9;
+            flex-shrink: 0;
+            border: 1px solid #e2e8f0;
+        }
+        .card-thumb-placeholder {
+            width: 56px;
+            height: 56px;
+            border-radius: 6px;
+            background: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #94a3b8;
+            flex-shrink: 0;
+        }
+        .card-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        .card-sku {
+            font-size: 12px;
+            color: #64748b;
+        }
+        .card-meta {
+            font-size: 11px;
+            color: #94a3b8;
+        }
+
+        /* 数量与实盘操作区 */
+        .stock-control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255,255,255,0.7);
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .system-qty {
+            font-size: 12px;
+            color: #475569;
+        }
+        .system-qty b {
+            font-size: 14px;
+            color: #1e293b;
+        }
+
+        .counter-box {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn-counter {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            background: #fff;
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .btn-counter:active { background: #e2e8f0; }
+        .input-counter {
+            width: 50px;
+            height: 32px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            outline: none;
+        }
+
+        .diff-tag {
+            font-size: 11px;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .tag-less { background: #fecdd3; color: #9f1239; }
+        .tag-more { background: #a7f3d0; color: #065f46; }
+        .tag-equal { background: #e2e8f0; color: #475569; }
+
+        /* 底部固定导出栏 */
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            padding: 10px 16px;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+            display: flex;
+            gap: 10px;
+            z-index: 200;
+        }
+        .btn-action {
+            flex: 1;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+        }
+        .btn-excel { background: #10b981; color: #fff; }
+        .btn-reset { background: #f1f5f9; color: #64748b; }
+
+        /* Modal preview */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.88);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            padding: 20px;
+        }
+        .modal img {
+            max-width: 95%;
+            max-height: 80vh;
+            border-radius: 8px;
+            object-fit: contain;
+        }
+        .modal-caption { color: #fff; margin-top: 12px; font-size: 15px; text-align: center; }
+        .modal-close { position: absolute; top: 16px; right: 20px; color: #fff; font-size: 32px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="title">
+        <span>📋 9.4-6温州 盘点系统</span>
+        <span style="font-size: 12px; color: #3b82f6; font-weight: normal;">盘点模式</span>
+    </div>
+
+    <!-- 盘点统计大盘 -->
+    <div class="stats-summary">
+        <div class="stat-badge">总SKU<b id="statTotal">0</b></div>
+        <div class="stat-badge success">正常/已盘<b id="statMatch">0</b></div>
+        <div class="stat-badge warn">少盘(盘亏)<b id="statLess">0</b></div>
+        <div class="stat-badge">多盘(盘盈)<b id="statMore">0</b></div>
+    </div>
+
+    <input type="text" id="searchInput" class="search-box" placeholder="🔍 搜索名称、SKU规格..." oninput="render()">
+
+    <div class="filter-tabs">
+        <button class="tab-btn active" onclick="setFilter('all', this)">全部商品</button>
+        <button class="tab-btn" onclick="setFilter('diff', this)">⚠️ 仅看有差异(盘盈/亏)</button>
+        <button class="tab-btn" onclick="setFilter('less', this)">🔻 仅看盘亏(缺货)</button>
+        <button class="tab-btn" onclick="setFilter('more', this)">🔺 仅看盘盈</button>
+    </div>
+</div>
+
+<div id="cardView" class="card-list"></div>
+
+<div class="bottom-bar">
+    <button class="btn-action btn-reset" onclick="resetAllCounts()">↺ 重置数</button>
+    <button class="btn-action btn-excel" onclick="exportExcelReport()">📤 导出盘点差异报告 (CSV)</button>
+</div>
+
+<div id="imgModal" class="modal" onclick="closeModal()">
+    <span class="modal-close">&times;</span>
+    <img id="modalImg" src="" referrerpolicy="no-referrer" alt="大图预览">
+    <div id="modalCaption" class="modal-caption"></div>
+</div>
+
+<script>
+    const rawData = [{"产品名称": "可撕便签纸", "SKU": "A6 todo", "图片": "https://img.alicdn.com/imgextra/i2/86384295/O1CN01pbQWkbzAotD2vHAO_!!86384295.jpg", "分装": "10p", "售价": "¥4.50", "数量": 3}, {"产品名称": "可撕便签纸", "SKU": "A6 购物", "图片": "https://img.alicdn.com/imgextra/i2/86384295/O1CN01pbQWkbzAotD2vHAO_!!86384295.jpg", "分装": "10p", "售价": "¥4.50", "数量": 0}, {"产品名称": "可撕便签纸", "SKU": "A6日计划", "图片": "https://img.alicdn.com/imgextra/i2/86384295/O1CN01pbQWkbzAotD2vHAO_!!86384295.jpg", "分装": "10p", "售价": "¥4.50", "数量": 2}, {"产品名称": "可撕便签纸", "SKU": "A6月计划", "图片": "https://img.alicdn.com/imgextra/i2/86384295/O1CN01pbQWkbzAotD2vHAO_!!86384295.jpg", "分装": "10p", "售价": "¥4.50", "数量": 1}, {"产品名称": "可撕便签纸", "SKU": "A6周计划", "图片": "https://img.alicdn.com/imgextra/i2/86384295/O1CN01pbQWkbzAotD2vHAO_!!86384295.jpg", "分装": "10p", "售价": "¥4.50", "数量": 17}, {"产品名称": "可撕便签纸", "SKU": "M5 TODO", "图片": "https://img.alicdn.com/imgextra/i2/86384295/O1CN01pbQWkbzAotD2vHAO_!!86384295.jpg", "分装": "10p", "售价": "¥3.50", "数量": 0}, {"产品名称": "可撕便签纸", "SKU": "M5 货物清单", "图片": "https://img.alicdn.com/imgextra/i2/86384295/O1CN01pbQWkbzAotD2vHAO_!!86384295.jpg", "分装": "10p", "售价": "¥3.50", "数量": 5}, {"产品名称": "可撕便签纸", "SKU": "M5 日计划", "图片": "https://img.alicdn.com/imgextra/i2/86384295/O1CN01pbQWkbzAotD2vHAO_!!86384295.jpg", "分装": "10p", "售价": "¥3.50", "数量": 6}, {"产品名称": "可撕便签纸", "SKU": "M5 月计划", "图片": "https://img.alicdn.com/imgextra/i2/86384295/O1CN01pbQWkbzAotD2vHAO_!!86384295.jpg", "分装": "10p", "售价": "¥3.50", "数量": 2}, {"产品名称": "可撕便签纸", "SKU": "M5 周计划", "图片": "https://img.alicdn.com/imgextra/i2/86384295/O1CN01pbQWkbzAotD2vHAO_!!86384295.jpg", "分装": "10p", "售价": "¥3.50", "数量": 1}, {"产品名称": "砂点纸", "SKU": "A7money", "图片": "", "分装": "10p", "售价": "¥4.50", "数量": 5}, {"产品名称": "砂点纸", "SKU": "A7todo", "图片": "", "分装": "10p", "售价": "¥4.50", "数量": 3}, {"产品名称": "砂点纸", "SKU": "A7一日一夜", "图片": "", "分装": "10p", "售价": "¥4.50", "数量": 4}, {"产品名称": "砂点纸", "SKU": "A7四年计划", "图片": "", "分装": "10p", "售价": "¥4.50", "数量": 4}, {"产品名称": "砂点纸", "SKU": "A7周计划", "图片": "", "分装": "10p", "售价": "¥4.50", "数量": 3}, {"产品名称": "砂点纸", "SKU": "A7健康", "图片": "", "分装": "10p", "售价": "¥4.50", "数量": 7}, {"产品名称": "砂点纸", "SKU": "A7时间追踪", "图片": "", "分装": "10p", "售价": "¥4.50", "数量": 5}, {"产品名称": "砂点纸", "SKU": "M5健康管理", "图片": "", "分装": "10p", "售价": "¥3.50", "数量": 11}, {"产品名称": "砂点纸", "SKU": "M5一日一页", "图片": "", "分装": "10p", "售价": "¥3.50", "数量": 6}, {"产品名称": "砂点纸", "SKU": "M5月计划", "图片": "", "分装": "10p", "售价": "¥3.50", "数量": 10}, {"产品名称": "砂点纸", "SKU": "M5周计划", "图片": "", "分装": "10p", "售价": "¥3.50", "数量": 8}, {"产品名称": "砂点纸", "SKU": "M5money", "图片": "", "分装": "10p", "售价": "¥3.50", "数量": 10}, {"产品名称": "砂点纸", "SKU": "M5TODO", "图片": "", "分装": "10p", "售价": "¥3.50", "数量": 5}, {"产品名称": "砂点纸", "SKU": "M5时间追总", "图片": "", "分装": "10p", "售价": "¥3.50", "数量": 2}, {"产品名称": "砂点纸", "SKU": "M5四年日记", "图片": "", "分装": "10p", "售价": "¥3.50", "数量": 7}, {"产品名称": "小猫空气便签", "SKU": "", "图片": "", "分装": "8P", "售价": "¥3.50", "数量": 22}, {"产品名称": "M5打卡", "SKU": "", "图片": "", "分装": "1P", "售价": "¥2.50", "数量": 0}, {"产品名称": "软收纳", "SKU": "M5-小猫收纳", "图片": "", "分装": "1P", "售价": "¥9.90", "数量": 4}, {"产品名称": "软收纳", "SKU": "瑕疵M5-小猫收纳", "图片": "", "分装": 1, "售价": "¥6.99", "数量": 1}, {"产品名称": "软收纳", "SKU": "A7-小猫收纳", "图片": "", "分装": "1P", "售价": "¥11.80", "数量": 0}, {"产品名称": "软收纳", "SKU": "瑕疵A6-小猫收纳", "图片": "", "分装": "1P", "售价": "¥8.99", "数量": 0}, {"产品名称": "软收纳", "SKU": "A6-小猫收纳", "图片": "", "分装": "1P", "售价": "¥12.80", "数量": 5}, {"产品名称": "软收纳", "SKU": "瑕疵A6P-花花收纳袋", "图片": "", "分装": "1P", "售价": "¥8.99", "数量": 1}, {"产品名称": "软收纳", "SKU": "瑕疵M5-蓝色竖线", "图片": "", "分装": "1P", "售价": "¥6.99", "数量": 2}, {"产品名称": "软收纳", "SKU": "瑕疵A7-蓝色竖线", "图片": "", "分装": "1P", "售价": "¥7.99", "数量": 2}, {"产品名称": "软收纳", "SKU": "瑕疵A6P-蓝色竖线", "图片": "", "分装": "1P", "售价": "¥8.99", "数量": 2}, {"产品名称": "软收纳", "SKU": "瑕疵A6P-红色爱心", "图片": "", "分装": "1P", "售价": "¥8.99", "数量": 0}, {"产品名称": "软收纳", "SKU": "瑕疵A6奇葩-红色爱心", "图片": "", "分装": "1P", "售价": "¥8.99", "数量": 0}, {"产品名称": "软收纳", "SKU": "瑕疵A 7-红色爱心", "图片": "", "分装": "1P", "售价": "¥7.99", "数量": 0}, {"产品名称": "离型本郁金香", "SKU": "离型本M5", "图片": "", "分装": "1P", "售价": "¥10.20", "数量": 13}, {"产品名称": "离型本郁金香", "SKU": "离型本A7", "图片": "", "分装": "1P", "售价": "¥11.90", "数量": 6}, {"产品名称": "离型本郁金香", "SKU": "离型本A6", "图片": "", "分装": "1P", "售价": "¥14.45", "数量": 2}, {"产品名称": "离型本郁金香", "SKU": "离型本奇葩", "图片": "", "分装": "1P", "售价": "¥14.45", "数量": 8}, {"产品名称": "离型本小狗阿贝贝", "SKU": "离型本M5", "图片": "", "分装": "1P", "售价": "¥10.20", "数量": 0}, {"产品名称": "离型本小狗阿贝贝", "SKU": "离型本A7", "图片": "", "分装": "1P", "售价": "¥11.90", "数量": 4}, {"产品名称": "离型本小狗阿贝贝", "SKU": "离型本A6", "图片": "", "分装": "1P", "售价": "¥14.45", "数量": 5}, {"产品名称": "离型本小狗阿贝贝", "SKU": "离型本奇葩", "图片": "", "分装": "1P", "售价": "¥14.45", "数量": 3}, {"产品名称": "离型本小熊", "SKU": "离型本M5", "图片": "", "分装": "1P", "售价": "¥10.20", "数量": 7}, {"产品名称": "离型本小熊", "SKU": "离型本A7", "图片": "", "分装": "1P", "售价": "¥11.90", "数量": 2}, {"产品名称": "离型本小熊", "SKU": "离型本A6", "图片": "", "分装": "1P", "售价": "¥14.45", "数量": 0}, {"产品名称": "离型本小熊", "SKU": "离型本奇葩", "图片": "", "分装": "1P", "售价": "¥14.45", "数量": 3}, {"产品名称": "离型本小熊", "SKU": "a5 slim", "图片": "", "分装": "1P", "售价": 16.99, "数量": 7}, {"产品名称": "离型本风铃", "SKU": "离型本M5", "图片": "", "分装": "1P", "售价": "¥10.20", "数量": 10}, {"产品名称": "离型本风铃", "SKU": "离型本A7", "图片": "", "分装": "1P", "售价": "¥11.90", "数量": 5}, {"产品名称": "离型本风铃", "SKU": "离型本A6", "图片": "", "分装": "1P", "售价": "¥14.45", "数量": 5}, {"产品名称": "离型本风铃", "SKU": "离型本奇葩", "图片": "", "分装": "1P", "售价": "¥14.45", "数量": 5}, {"产品名称": "硬收纳袋", "SKU": "小女孩M5", "图片": "", "分装": "1P", "售价": "¥10.80", "数量": 1}, {"产品名称": "硬收纳袋", "SKU": "圣诞树A7", "图片": "", "分装": "1P", "售价": "¥13.50", "数量": 0}, {"产品名称": "硬收纳袋", "SKU": "圣诞树A6", "图片": "", "分装": "1P", "售价": "¥16.20", "数量": 0}, {"产品名称": "硬收纳袋", "SKU": "瑕疵M5", "图片": "", "分装": "1P", "售价": "¥7.56", "数量": 0}, {"产品名称": "硬收纳袋", "SKU": "瑕疵A7-白色", "图片": "", "分装": "1P", "售价": 9.45, "数量": 10}, {"产品名称": "硬收纳袋", "SKU": "瑕疵A6P-白色", "图片": "", "分装": "1P", "售价": 11.34, "数量": 8}, {"产品名称": "硬收纳袋", "SKU": "瑕疵A6奇葩-白色", "图片": "", "分装": "1P", "售价": 11.34, "数量": 13}, {"产品名称": "硬收纳袋", "SKU": "瑕疵M5-蓝色爱心", "图片": "", "分装": "1P", "售价": "¥7.56", "数量": 0}, {"产品名称": "硬收纳袋", "SKU": "瑕疵A7蓝色爱心", "图片": "", "分装": "1P", "售价": 9.45, "数量": 1}, {"产品名称": "硬收纳袋", "SKU": "瑕疵A6P蓝色爱心", "图片": "", "分装": "1P", "售价": "¥11.34", "数量": 1}, {"产品名称": "硬收纳袋", "SKU": "瑕疵A6奇葩蓝色爱心", "图片": "", "分装": "1P", "售价": "¥11.34", "数量": 1}, {"产品名称": "31天一日一页", "SKU": "M5", "图片": "", "分装": "32P", "售价": "¥5.80", "数量": 7}, {"产品名称": "31天一日一页", "SKU": "A7", "图片": "", "分装": 32, "售价": 8.8, "数量": 0}, {"产品名称": "31天一日一页", "SKU": "A6P", "图片": "", "分装": 32, "售价": 8.8, "数量": 5}, {"产品名称": "31天一日一页", "SKU": "奇葩", "图片": "", "分装": 16, "售价": 8.8, "数量": 7}, {"产品名称": "旅行系列内页", "SKU": "A7-【时间轴＆记账】三折页", "图片": "", "分装": "5P", "售价": "¥4.50", "数量": 3}, {"产品名称": "旅行系列内页", "SKU": "A6-【时间轴＆记账】三折页", "图片": "", "分装": "5P", "售价": "¥5.50", "数量": 8}, {"产品名称": "旅行系列内页", "SKU": "A7-旅行复盘", "图片": "", "分装": "10P", "售价": "¥4.50", "数量": 3}, {"产品名称": "旅行系列内页", "SKU": "A6-旅行复盘", "图片": "", "分装": "10P", "售价": "¥5.50", "数量": 9}, {"产品名称": "旅行系列内页", "SKU": "A7-【盖章】", "图片": "", "分装": "10P", "售价": "¥4.50", "数量": 10}, {"产品名称": "旅行系列内页", "SKU": "A6-【盖章】", "图片": "", "分装": "10P", "售价": "¥5.50", "数量": 1}, {"产品名称": "旅行系列内页", "SKU": "A7-【攻略＆行李清单】二折页", "图片": "", "分装": "5P", "售价": "¥4.50", "数量": 6}, {"产品名称": "旅行系列内页", "SKU": "A6-【攻略＆行李清单】二折页", "图片": "", "分装": "5P", "售价": "¥5.50", "数量": 5}, {"产品名称": "旅行系列内页", "SKU": "A7-【线路图＆红黑榜】", "图片": "", "分装": "10P", "售价": "¥4.50", "数量": 7}, {"产品名称": "旅行系列内页", "SKU": "A6-【线路图＆红黑榜】", "图片": "", "分装": "10P", "售价": "¥5.50", "数量": 7}, {"产品名称": "旅行系列内页", "SKU": "A7-【一日一页】", "图片": "", "分装": "10P", "售价": "¥4.50", "数量": 4}, {"产品名称": "旅行系列内页", "SKU": "narrow-【一日一页】", "图片": "", "分装": "10P", "售价": "¥5.50", "数量": 2}, {"产品名称": "旅行系列内页", "SKU": "A 6-【一日一页】", "图片": "", "分装": "10P", "售价": "¥5.50", "数量": 5}, {"产品名称": "空白内页A7", "SKU": "", "图片": "纯空白", "分装": "50P", "售价": "¥4.00", "数量": 10}, {"产品名称": "彩色内页", "SKU": "奇葩-横线", "图片": "", "分装": "10P", "售价": "¥5.50", "数量": 4}, {"产品名称": "彩色内页", "SKU": "奇葩-法文", "图片": "", "分装": "10P", "售价": "¥5.50", "数量": 10}, {"产品名称": "彩色内页", "SKU": "A6p-空白", "图片": "", "分装": "10p", "售价": "¥5.00", "数量": 0}, {"产品名称": "彩色内页", "SKU": "A6横线", "图片": "", "分装": "10P", "售价": "¥5.50", "数量": 6}, {"产品名称": "彩色内页", "SKU": "A6法文", "图片": "", "分装": "10P", "售价": "¥5.50", "数量": 0}, {"产品名称": "彩色内页", "SKU": "A7-内页 ", "图片": "", "分装": "10P", "售价": "¥4.00", "数量": 10}, {"产品名称": "彩色内页", "SKU": "A7横线", "图片": "", "分装": "10P", "售价": "¥4.50", "数量": 40}, {"产品名称": "彩色内页", "SKU": "A7法文格 ", "图片": "", "分装": "10P", "售价": "¥4.50", "数量": 0}, {"产品名称": "彩色内页", "SKU": "M5法文格", "图片": "", "分装": "10P", "售价": "¥3.50", "数量": 25}, {"产品名称": "彩色内页", "SKU": "M5-74-空白", "图片": "", "分装": "10P", "售价": "¥3.00", "数量": 17}, {"产品名称": "彩色内页", "SKU": "M5-空白", "图片": "", "分装": "10P", "售价": "¥3.00", "数量": 4}, {"产品名称": "彩色内页", "SKU": "M5-横线", "图片": "", "分装": "10P", "售价": "¥3.50", "数量": 10}, {"产品名称": "洒银便签本", "SKU": "花日历", "图片": "", "分装": "49张", "售价": "¥8.80", "数量": 10}, {"产品名称": "洒银便签本", "SKU": "花空白", "图片": "", "分装": "49张", "售价": "¥8.80", "数量": 18}, {"产品名称": "洒银便签本", "SKU": "紫女巫", "图片": "", "分装": "49张", "售价": "¥8.80", "数量": 2}, {"产品名称": "洒银便签本", "SKU": "空白女巫", "图片": "", "分装": "49张", "售价": "¥8.80", "数量": 0}, {"产品名称": "洒银便签本", "SKU": "酒保", "图片": "", "分装": "49张", "售价": "¥8.80", "数量": 5}, {"产品名称": "便签卷/弱粘很弱", "SKU": "工作", "图片": "", "分装": 1, "售价": "¥4.00", "数量": 20}, {"产品名称": "便签卷/弱粘很弱", "SKU": "购物", "图片": "", "分装": 1, "售价": "¥4.00", "数量": 20}, {"产品名称": "便签卷/弱粘很弱", "SKU": "家事", "图片": "", "分装": 1, "售价": "¥4.00", "数量": 20}, {"产品名称": "便签卷/弱粘很弱", "SKU": "健康", "图片": "", "分装": 1, "售价": "¥4.00", "数量": 20}, {"产品名称": "便签卷/弱粘很弱", "SKU": "空白", "图片": "", "分装": 1, "售价": "¥8.00", "数量": 2}, {"产品名称": "便签卷/弱粘很弱", "SKU": "起居", "图片": "", "分装": 1, "售价": "¥4.00", "数量": 20}, {"产品名称": "便签卷/弱粘很弱", "SKU": "省记", "图片": "", "分装": 1, "售价": "¥4.00", "数量": 20}, {"产品名称": "便签卷/弱粘很弱", "SKU": "事务", "图片": "", "分装": 1, "售价": "¥4.00", "数量": 20}, {"产品名称": "便签卷/弱粘很弱", "SKU": "手账", "图片": "", "分装": 1, "售价": "¥4.00", "数量": 20}, {"产品名称": "便签卷/弱粘很弱", "SKU": "行程", "图片": "", "分装": 1, "售价": "¥4.00", "数量": 20}, {"产品名称": "便签卷/弱粘很弱", "SKU": "影音", "图片": "", "分装": 1, "售价": "¥4.00", "数量": 20}, {"产品名称": "便签卷/弱粘很弱", "SKU": "理财", "图片": "", "分装": 1, "售价": "¥4.00", "数量": 20}, {"产品名称": "红色记号笔一只", "SKU": "", "图片": "/", "分装": "/", "售价": "/", "数量": ""}, {"产品名称": "对联分隔页", "SKU": "A7", "图片": "", "分装": "1P", "售价": "¥1.50", "数量": 7}, {"产品名称": "对联分隔页", "SKU": "A6p", "图片": "", "分装": "1P", "售价": "¥2.00", "数量": 6}, {"产品名称": "日本进口-咖啡纸", "SKU": "A7", "图片": "", "分装": "10P", "售价": "¥4.50", "数量": 5}, {"产品名称": "日本进口-咖啡纸", "SKU": "A6P", "图片": "", "分装": "10P", "售价": "¥4.50", "数量": 3}, {"产品名称": "她世界", "SKU": "M5", "图片": "", "分装": 1, "售价": "¥2.80", "数量": 0}, {"产品名称": "她世界", "SKU": "A7", "图片": "", "分装": 1, "售价": "¥3.80", "数量": 0}, {"产品名称": "她世界", "SKU": "A6P", "图片": "", "分装": 1, "售价": "¥4.80", "数量": 0}, {"产品名称": "她世界", "SKU": "NARROW", "图片": "", "分装": 1, "售价": "¥4.80", "数量": 3}, {"产品名称": "她世界", "SKU": "奇葩", "图片": "", "分装": 1, "售价": "¥4.80", "数量": 3}, {"产品名称": "纸砖", "SKU": "m5（100p）", "图片": "", "分装": "100P", "售价": "¥3.50", "数量": 25}, {"产品名称": "纸砖", "SKU": "a7（100P）", "图片": "", "分装": "100P", "售价": "¥4.50", "数量": 25}, {"产品名称": "金边本", "SKU": "金边D", "图片": "", "分装": "54张", "售价": "¥9.90", "数量": 4}, {"产品名称": "金边本", "SKU": "金边M", "图片": "", "分装": "54张", "售价": "¥9.90", "数量": 4}, {"产品名称": "金边本", "SKU": "金边T", "图片": "", "分装": "54张", "售价": "¥9.90", "数量": 4}, {"产品名称": "金边本", "SKU": "金边W", "图片": "", "分装": "54张", "售价": "¥9.90", "数量": 4}, {"产品名称": "金边本", "SKU": "金边B", "图片": "", "分装": "54张", "售价": "¥9.90", "数量": 4}, {"产品名称": "多功能收纳本", "SKU": "m5", "图片": "", "分装": "m5", "售价": "¥11.90", "数量": 10}, {"产品名称": "多功能收纳本", "SKU": "a7", "图片": "", "分装": "a7", "售价": "¥13.99", "数量": 10}, {"产品名称": "多功能收纳本", "SKU": "a6", "图片": "", "分装": "a6", "售价": "¥15.99", "数量": 10}, {"产品名称": "多功能收纳本", "SKU": "a5", "图片": "", "分装": "a5", "售价": "¥17.99", "数量": 10}, {"产品名称": "便利贴", "SKU": "便利贴", "图片": "", "分装": "40P", "售价": "¥4.50", "数量": 19}, {"产品名称": "花笺", "SKU": "M5-5孔新法文", "图片": "新法文", "分装": "10P", "售价": "¥3.50", "数量": 6}, {"产品名称": "花笺", "SKU": "M5-5孔新方格", "图片": "新方格", "分装": "10P", "售价": "¥3.50", "数量": 8}, {"产品名称": "花笺", "SKU": "M5-5孔旧方格", "图片": "旧方格", "分装": "10P", "售价": "¥3.50", "数量": 7}, {"产品名称": "花笺", "SKU": "M5-5孔新点阵", "图片": "新点阵", "分装": "10P", "售价": "¥3.50", "数量": 18}, {"产品名称": "花笺", "SKU": "M5-5孔新打卡", "图片": "新打卡", "分装": "10P", "售价": "¥3.50", "数量": 10}, {"产品名称": "花笺", "SKU": "M5-3孔新法文", "图片": "新法文", "分装": "10P", "售价": "¥3.50", "数量": 4}, {"产品名称": "花笺", "SKU": "M5-3孔新方格", "图片": "新方格", "分装": "10P", "售价": "¥3.50", "数量": 5}, {"产品名称": "花笺", "SKU": "M5-3孔新点阵", "图片": "新点阵", "分装": "10P", "售价": "¥3.50", "数量": 3}, {"产品名称": "花笺", "SKU": "M5-3孔新打卡", "图片": "新打卡", "分装": "10P", "售价": "¥3.50", "数量": 5}, {"产品名称": "花笺", "SKU": "A7-新法文", "图片": "新法文", "分装": "10P", "售价": "¥4.50", "数量": 1}, {"产品名称": "花笺", "SKU": "A7-新方格", "图片": "新方格", "分装": "10P", "售价": "¥4.50", "数量": 5}, {"产品名称": "花笺", "SKU": "A7-旧方格", "图片": "旧方格", "分装": "10P", "售价": "¥4.50", "数量": 3}, {"产品名称": "花笺", "SKU": "A7-新点阵", "图片": "新点阵", "分装": "10P", "售价": "¥4.50", "数量": 12}, {"产品名称": "花笺", "SKU": "A7-新打卡", "图片": "新打卡", "分装": "10P", "售价": "¥4.50", "数量": 16}, {"产品名称": "花笺", "SKU": "A6P-新法文", "图片": "新法文", "分装": "10P", "售价": "¥5.50", "数量": 10}, {"产品名称": "花笺", "SKU": "A6P-新方格", "图片": "新方格", "分装": "10P", "售价": "¥5.50", "数量": 8}, {"产品名称": "花笺", "SKU": "A6P-旧方格", "图片": "旧方格", "分装": "10P", "售价": "¥5.50", "数量": 5}, {"产品名称": "花笺", "SKU": "A6P-新点阵", "图片": "新点阵", "分装": "10P", "售价": "¥5.50", "数量": 4}, {"产品名称": "花笺", "SKU": "A6P-新打卡", "图片": "新打卡", "分装": "10P", "售价": "¥5.50", "数量": 11}, {"产品名称": "花笺", "SKU": "A6奇葩-新法文", "图片": "新法文", "分装": "10P", "售价": "¥5.50", "数量": 8}, {"产品名称": "花笺", "SKU": "A6奇葩-新方格", "图片": "新方格", "分装": "10P", "售价": "¥5.50", "数量": 8}, {"产品名称": "花笺", "SKU": "A6奇葩-旧方格", "图片": "旧方格", "分装": "10P", "售价": "¥5.50", "数量": 6}, {"产品名称": "花笺", "SKU": "A6奇葩-新点阵", "图片": "新点阵", "分装": "10P", "售价": "¥5.50", "数量": 4}, {"产品名称": "花笺", "SKU": "A6奇葩-新打卡", "图片": "新打卡", "分装": "10P", "售价": "¥5.50", "数量": 6}, {"产品名称": "收纳盒", "SKU": "收纳盒", "图片": "", "分装": 1, "售价": "¥8.80", "数量": 8}, {"产品名称": "活页离型纸", "SKU": "M5-3孔", "图片": "", "分装": "50张", "售价": "¥11.90", "数量": 5}, {"产品名称": "活页离型纸", "SKU": "M5-5孔", "图片": "", "分装": "50张", "售价": "¥11.90", "数量": 3}, {"产品名称": "活页离型纸", "SKU": "A7", "图片": "", "分装": "50张", "售价": "¥13.60", "数量": 6}, {"产品名称": "活页离型纸", "SKU": "A7瑕疵", "图片": "", "分装": "50张", "售价": 9.52, "数量": 1}, {"产品名称": "活页离型纸", "SKU": "A6P", "图片": "", "分装": "50张", "售价": "¥15.60", "数量": 5}, {"产品名称": "活页离型纸", "SKU": "NARROW", "图片": "", "分装": "50张", "售价": "¥15.60", "数量": 3}, {"产品名称": "活页离型纸", "SKU": "奇葩", "图片": "", "分装": "50张", "售价": "¥15.60", "数量": 3}, {"产品名称": "活页离型纸", "SKU": "A6FC", "图片": "", "分装": "50张", "售价": "¥15.60", "数量": 4}, {"产品名称": "活页离型纸", "SKU": "A6FC瑕疵", "图片": "", "分装": "50张", "售价": 10.92, "数量": 1}, {"产品名称": "today尺", "SKU": "A6", "图片": "蓝", "分装": 1, "售价": "¥6.50", "数量": 7}, {"产品名称": "today尺", "SKU": "A6", "图片": "红", "分装": 1, "售价": "¥6.50", "数量": 5}, {"产品名称": "today尺", "SKU": "A7", "图片": "蓝", "分装": 1, "售价": "¥5.50", "数量": 6}, {"产品名称": "today尺", "SKU": "A7", "图片": "红", "分装": 1, "售价": "¥5.50", "数量": 5}, {"产品名称": "胶片", "SKU": "M5", "图片": "", "分装": 1, "售价": 4.5, "数量": 14}, {"产品名称": "胶片", "SKU": "A7", "图片": "", "分装": 1, "售价": 6, "数量": 13}, {"产品名称": "胶片", "SKU": "NARROW", "图片": "", "分装": 1, "售价": 9.9, "数量": 19}, {"产品名称": "胶片", "SKU": "A6P", "图片": "", "分装": 1, "售价": 9.9, "数量": 66}, {"产品名称": "胶片", "SKU": "奇葩", "图片": "", "分装": 1, "售价": 9.9, "数量": 13}, {"产品名称": "胶片", "SKU": "A6FC", "图片": "", "分装": 1, "售价": 9.9, "数量": 10}, {"产品名称": "胶片", "SKU": "标准TN", "图片": "", "分装": 1, "售价": 15, "数量": 18}, {"产品名称": "TN书写纸", "SKU": "TN小熊", "图片": "", "分装": 1, "售价": "¥9.90", "数量": 7}, {"产品名称": "TN书写纸", "SKU": "TN小狗", "图片": "", "分装": 1, "售价": "¥9.90", "数量": 7}, {"产品名称": "特殊纸本", "SKU": "A6 P 蔷薇", "图片": "", "分装": 1, "售价": 16.14, "数量": 10}, {"产品名称": "特殊纸本", "SKU": "A7蔷薇", "图片": "", "分装": 1, "售价": "¥13.60", "数量": 9}, {"产品名称": "瑕疵便签卷", "SKU": "TOMA头", "图片": "", "分装": 1, "售价": "¥2.00", "数量": 20}, {"产品名称": "瑕疵便签卷", "SKU": "抓住春天", "图片": "", "分装": 1, "售价": 2, "数量": 20}, {"产品名称": "瑕疵便签卷", "SKU": "空白", "图片": "", "分装": 1, "售价": 2, "数量": 20}, {"产品名称": "瑕疵便签卷", "SKU": "少女类泪", "图片": "", "分装": 1, "售价": 2, "数量": 20}, {"产品名称": "瑕疵便签卷", "SKU": "粉褐", "图片": "", "分装": 1, "售价": 2, "数量": 20}, {"产品名称": "TN离型本 ", "SKU": "TN离型本 紫色花", "图片": "", "分装": 1, "售价": 16.99, "数量": 5}, {"产品名称": "TN离型本", "SKU": "TN离型本 蔷薇", "图片": "", "分装": 1, "售价": 16.99, "数量": 8}, {"产品名称": "单色内页", "SKU": "A7月计划紫色", "图片": "", "分装": "10p", "售价": "¥4.50", "数量": 6}, {"产品名称": "单色内页", "SKU": "A7月计划蓝色", "图片": "", "分装": "10p", "售价": "¥4.50", "数量": 0}, {"产品名称": "单色内页", "SKU": "A7蓝色法文金边", "图片": "", "分装": "10P", "售价": 4.5, "数量": 8}, {"产品名称": "单色内页", "SKU": "二折-瑕疵-每日生活", "图片": "", "分装": "5P", "售价": 3, "数量": 10}, {"产品名称": "单色内页", "SKU": "A7烟紫 月计划", "图片": "", "分装": "10P", "售价": 4.5, "数量": 9}, {"产品名称": "瑕疵奏折竖版", "SKU": "M5", "图片": "", "分装": 1, "售价": 16.9, "数量": 4}, {"产品名称": "瑕疵奏折竖版", "SKU": "A7", "图片": "", "分装": 1, "售价": 21.45, "数量": 11}, {"产品名称": "瑕疵奏折竖版", "SKU": "A6P", "图片": "", "分装": 1, "售价": 24.7, "数量": 10}, {"产品名称": "瑕疵奏折竖版", "SKU": "奇葩", "图片": "", "分装": 1, "售价": 24.7, "数量": 4}, {"产品名称": "小熊奥利", "SKU": "小熊奥利TN-记仇", "图片": "", "分装": 1, "售价": 33, "数量": 4}, {"产品名称": "小熊奥利", "SKU": "小熊奥利TN-黄色", "图片": "", "分装": 1, "售价": 33, "数量": 4}, {"产品名称": "小熊奥利", "SKU": "小熊奥利贴纸-和纸", "图片": "", "分装": 1, "售价": 15, "数量": 5}, {"产品名称": "小熊奥利", "SKU": "小熊奥利贴纸-白色PVC", "图片": "", "分装": 1, "售价": 18, "数量": 5}, {"产品名称": "小熊奥利", "SKU": "小熊奥利贴纸-滴胶", "图片": "", "分装": 1, "售价": 18, "数量": 5}, {"产品名称": "瑕疵奏折-横板", "SKU": "M5", "图片": "", "分装": 1, "售价": 21.45, "数量": 20}, {"产品名称": "瑕疵奏折-横板", "SKU": "A7", "图片": "", "分装": 1, "售价": 24.7, "数量": 13}, {"产品名称": "收款码", "SKU": 1, "图片": "/", "分装": "/", "售价": "/", "数量": "/"}, {"产品名称": "赠品", "SKU": "Mini卡", "图片": "关注礼", "分装": 1, "售价": 1.5, "数量": 106}, {"产品名称": "赠品", "SKU": "豆豆本", "图片": "满19", "分装": 1, "售价": 2, "数量": 39}, {"产品名称": "赠品", "SKU": "钥匙扣本", "图片": "满29", "分装": 1, "售价": 4, "数量": 38}, {"产品名称": "赠品", "SKU": "猫爪本", "图片": "满39", "分装": 1, "售价": 15, "数量": 10}, {"产品名称": "赠品", "SKU": "油棒画", "图片": "满39", "分装": 1, "售价": 10, "数量": 5}];
+
+    // 初始化盘点数据（读取本地存储，防止误刷网页丢失盘点进度）
+    let stockData = [];
+    try {
+        const saved = localStorage.getItem('wenzhou_stock_counts');
+        if (saved) {
+            stockData = JSON.parse(saved);
+        }
+    } catch(e){}
+
+    if (!stockData || stockData.length !== rawData.length) {
+        stockData = rawData.map((item, idx) => {
+            const sysQty = parseInt(item['数量']) || 0;
+            return {
+                id: idx,
+                name: item['产品名称'],
+                sku: item['SKU'],
+                package: item['分装'],
+                price: item['售价'],
+                img: item['图片'],
+                sysQty: sysQty,
+                realQty: sysQty // 默认实盘数量 = 账面数量
+            };
+        });
+    }
+
+    let currentFilter = 'all';
+
+    function saveLocal() {
+        try {
+            localStorage.setItem('wenzhou_stock_counts', JSON.stringify(stockData));
+        } catch(e){}
+    }
+
+    function updateStats() {
+        let total = stockData.length;
+        let match = 0;
+        let less = 0;
+        let more = 0;
+
+        stockData.forEach(item => {
+            const diff = item.realQty - item.sysQty;
+            if (diff === 0) match++;
+            else if (diff < 0) less++;
+            else if (diff > 0) more++;
+        });
+
+        document.getElementById('statTotal').innerText = total;
+        document.getElementById('statMatch').innerText = match;
+        document.getElementById('statLess').innerText = less;
+        document.getElementById('statMore').innerText = more;
+    }
+
+    function render() {
+        updateStats();
+        const query = document.getElementById('searchInput').value.trim().toLowerCase();
+
+        const filtered = stockData.filter(item => {
+            const matchQuery = (item.name && item.name.toLowerCase().includes(query)) ||
+                               (item.sku && item.sku.toLowerCase().includes(query));
+            if (!matchQuery) return false;
+
+            const diff = item.realQty - item.sysQty;
+            if (currentFilter === 'diff') return diff !== 0;
+            if (currentFilter === 'less') return diff < 0;
+            if (currentFilter === 'more') return diff > 0;
+            return true;
+        });
+
+        const cardView = document.getElementById('cardView');
+        if (filtered.length === 0) {
+            cardView.innerHTML = `<div style="text-align:center; padding:40px; color:#94a3b8; font-size:14px;">没有符合条件的商品</div>`;
+            return;
+        }
+
+        cardView.innerHTML = filtered.map(item => {
+            const diff = item.realQty - item.sysQty;
+            let cardClass = 'card diff-equal';
+            let diffTag = `<span class="diff-tag tag-equal">无差异</span>`;
+
+            if (diff < 0) {
+                cardClass = 'card diff-less';
+                diffTag = `<span class="diff-tag tag-less">少 ${Math.abs(diff)}</span>`;
+            } else if (diff > 0) {
+                cardClass = 'card diff-more';
+                diffTag = `<span class="diff-tag tag-more">多 ${diff}</span>`;
+            }
+
+            const hasImg = item.img && item.img.trim().length > 0 && item.img !== '/';
+            const imgHtml = hasImg 
+                ? `<img src="${escapeHtml(item.img)}" referrerpolicy="no-referrer" class="card-thumb" onclick="openModal('${escapeHtml(item.img)}', '${escapeHtml(item.name)} - ${escapeHtml(item.sku)}')">`
+                : `<div class="card-thumb-placeholder">无图</div>`;
+
+            return `
+                <div class="${cardClass}">
+                    <div class="card-header">
+                        ${imgHtml}
+                        <div class="card-info">
+                            <div class="card-title">${escapeHtml(item.name)}</div>
+                            <div class="card-sku">SKU: ${escapeHtml(item.sku)}</div>
+                            <div class="card-meta">包装: ${escapeHtml(item.package || '-')} | 售价: ${escapeHtml(item.price || '-')}</div>
+                        </div>
+                    </div>
+
+                    <div class="stock-control-row">
+                        <div class="system-qty">账面: <b>${item.sysQty}</b></div>
+                        
+                        <div class="counter-box">
+                            <span style="font-size:12px; color:#64748b; margin-right:4px;">实盘:</span>
+                            <button class="btn-counter" onclick="adjustQty(${item.id}, -1)">-</button>
+                            <input type="number" class="input-counter" value="${item.realQty}" onchange="setQty(${item.id}, this.value)">
+                            <button class="btn-counter" onclick="adjustQty(${item.id}, 1)">+</button>
+                        </div>
+
+                        ${diffTag}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function adjustQty(id, delta) {
+        const item = stockData.find(x => x.id === id);
+        if (item) {
+            item.realQty = Math.max(0, item.realQty + delta);
+            saveLocal();
+            render();
+        }
+    }
+
+    function setQty(id, val) {
+        const item = stockData.find(x => x.id === id);
+        if (item) {
+            const num = parseInt(val);
+            item.realQty = isNaN(num) ? 0 : Math.max(0, num);
+            saveLocal();
+            render();
+        }
+    }
+
+    function setFilter(filter, btn) {
+        currentFilter = filter;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        render();
+    }
+
+    function resetAllCounts() {
+        if (confirm('确认将所有商品的实盘数量重置为账面数量吗？')) {
+            stockData.forEach(item => item.realQty = item.sysQty);
+            saveLocal();
+            render();
+        }
+    }
+
+    function exportExcelReport() {
+        let csvContent = "\uFEFF产品名称,SKU规格,包装,售价,账面数量,实盘数量,差异(盈亏),盘点状态\n";
+        
+        stockData.forEach(item => {
+            const diff = item.realQty - item.sysQty;
+            let status = '正常';
+            if (diff < 0) status = '盘亏(缺货)';
+            if (diff > 0) status = '盘盈(多出)';
+
+            csvContent += `"${item.name}","${item.sku}","${item.package}","${item.price}",${item.sysQty},${item.realQty},${diff},"${status}"\n`;
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `9.4-6温州盘点差异报告_${new Date().toLocaleDateString()}.csv`;
+        a.click();
+        alert('🎉 盘点差异报告已导出！可以发送给负责人核对！');
+    }
+
+    function openModal(src, caption) {
+        document.getElementById('modalImg').src = src;
+        document.getElementById('modalCaption').innerText = caption;
+        document.getElementById('imgModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('imgModal').style.display = 'none';
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.toString()
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    render();
+</script>
+
+</body>
+</html>
