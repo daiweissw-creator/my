@@ -145,17 +145,18 @@
 
         .mp-footer { padding: 16px; border-top: 1px solid #e2e8f0; background: #fff; display: flex; flex-direction: column; gap: 12px; }
         
-        /* 云端拉取区域样式 */
+        /* 云端拉取区域样式修改 */
         .cloud-fetch-box {
             display: flex; gap: 8px; background: #f1f5f9; padding: 10px; border-radius: 8px; border: 1px dashed #cbd5e1;
         }
-        .cloud-input {
-            flex: 1; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; outline: none;
+        .cloud-select {
+            flex: 1; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; outline: none; background: #fff;
         }
         .cloud-btn {
             background: #3b82f6; color: #fff; border: none; border-radius: 6px; padding: 0 12px; font-weight: bold; cursor: pointer; white-space: nowrap;
         }
         .cloud-btn:active { opacity: 0.8; }
+        .cloud-btn:disabled { background: #94a3b8; cursor: not-allowed; }
 
         .btn-upload {
             width: 100%; padding: 10px; background: #f8fafc; color: #64748b; text-align: center; border-radius: 8px; border: 1px solid #e2e8f0;
@@ -220,9 +221,12 @@
         </div>
         <div class="mp-footer">
             
-            <div style="font-size: 13px; font-weight: bold; color: #1e293b;">☁️ 从云端获取新集市</div>
+            <div style="font-size: 13px; font-weight: bold; color: #1e293b;">☁️ 从 GitHub 仓库一键导入</div>
             <div class="cloud-fetch-box">
-                <input type="text" id="cloudFileName" class="cloud-input" placeholder="输入表格名称 (如: hangzhou)">
+                <!-- 这里改为了下拉选择框 -->
+                <select id="cloudFileSelect" class="cloud-select">
+                    <option value="">正在读取仓库文件...</option>
+                </select>
                 <button class="cloud-btn" onclick="fetchCloudExcel()" id="cloudFetchBtn">下载导入</button>
             </div>
             
@@ -237,8 +241,15 @@
 </div>
 
 <script>
+    // ==========================================
+    // ⚠️ 请在这里配置你的 GitHub 仓库信息！⚠️
+    // ==========================================
+    const GITHUB_USER = 'daiweissw-creator';   // 例如：'zhangsan'
+    const GITHUB_REPO = 'my';       // 例如：'inventory-system'
+    // ==========================================
+
     let appData = { events: [], currentId: null };
-    const STORAGE_KEY = 'inventory_app_v4';
+    const STORAGE_KEY = 'inventory_app_v5';
 
     function initApp() {
         try {
@@ -247,7 +258,6 @@
         } catch(e){}
 
         if (!appData.events || appData.events.length === 0) {
-            // 如果第一次打开没有任何数据，给个空壳提示
             appData.events = [];
             document.getElementById('currentEventNameDisplay').innerText = "暂无集市数据";
         }
@@ -419,7 +429,14 @@
 
     // --- 集市管理面板 ---
     const managerModal = document.getElementById('managerModal');
-    function openManager() { renderManagerList(); managerModal.style.display = 'flex'; }
+    
+    function openManager() { 
+        renderManagerList(); 
+        managerModal.style.display = 'flex'; 
+        // 每次打开管理面板时，自动拉取最新仓库列表
+        loadCloudFileList(); 
+    }
+    
     function closeManager() { managerModal.style.display = 'none'; }
     
     function renderManagerList() {
@@ -447,11 +464,13 @@
     }
 
     function switchEvent(id) { appData.currentId = id; saveApp(); refreshView(); renderManagerList(); closeManager(); }
+    
     function renameEvent(id) {
         const ev = appData.events.find(e => e.id === id); if (!ev) return;
         const newName = prompt('请输入新的集市名称：', ev.name);
         if (newName && newName.trim()) { ev.name = newName.trim(); saveApp(); renderManagerList(); refreshView(); }
     }
+    
     function deleteEvent(id) {
         const ev = appData.events.find(e => e.id === id);
         if (!confirm(`确定要删除集市【${ev.name}】吗？删除后不可恢复！`)) return;
@@ -460,37 +479,76 @@
         saveApp(); renderManagerList(); refreshView();
     }
 
-    // --- 核心：从云端(GitHub)拉取 Excel ---
-    async function fetchCloudExcel() {
-        const inputObj = document.getElementById('cloudFileName');
+    // --- 核心：自动拉取 GitHub 目录列表 ---
+    async function loadCloudFileList() {
+        const selectObj = document.getElementById('cloudFileSelect');
         const btnObj = document.getElementById('cloudFetchBtn');
-        let fileName = inputObj.value.trim();
         
-        if (!fileName) { alert("请输入需要下载的表格名称！\n例如: hangzhou"); return; }
-        
-        // 自动补全 .xlsx 后缀
-        if (!fileName.toLowerCase().endsWith('.xlsx') && !fileName.toLowerCase().endsWith('.xls')) {
-            fileName += '.xlsx';
+        // 如果没有配置用户名，给予提示并禁用按钮
+        if (GITHUB_USER.includes('填入你的')) {
+            selectObj.innerHTML = '<option value="">⚠️ 开发者未配置 GitHub 账号，无法读取</option>';
+            btnObj.disabled = true;
+            return;
         }
+
+        selectObj.innerHTML = '<option value="">🔄 正在获取云端列表...</option>';
+        btnObj.disabled = true; // 加载中先禁用下载按钮
+
+        try {
+            // 调用 GitHub 免费公开 API
+            const url = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error('获取失败，请确认仓库是否为 Public');
+            }
+            
+            const files = await response.json();
+            
+            // 过滤出 .xlsx 和 .xls 结尾的文件
+            const excelFiles = files.filter(f => f.name.endsWith('.xlsx') || f.name.endsWith('.xls'));
+            
+            if (excelFiles.length === 0) {
+                selectObj.innerHTML = '<option value="">仓库中目前没有上传 Excel 文件</option>';
+                return;
+            }
+
+            // 渲染下拉选项
+            selectObj.innerHTML = excelFiles.map((f, index) => 
+                `<option value="${f.name}" ${index === 0 ? 'selected' : ''}>📄 ${f.name}</option>`
+            ).join('');
+            
+            btnObj.disabled = false; // 恢复按钮
+
+        } catch (error) {
+            console.error(error);
+            selectObj.innerHTML = `<option value="">❌ 获取列表失败</option>`;
+        }
+    }
+
+    // --- 核心：通过下拉框的值下载并导入 ---
+    async function fetchCloudExcel() {
+        const selectObj = document.getElementById('cloudFileSelect');
+        const btnObj = document.getElementById('cloudFetchBtn');
+        let fileName = selectObj.value;
+        
+        if (!fileName) { alert("请先在下拉列表中选择一个表格！"); return; }
 
         btnObj.innerText = "拉取中...";
         btnObj.disabled = true;
 
         try {
-            // 通过相对路径去当前同级目录拉取文件
+            // 相对路径抓取：既然是在 GitHub Pages 托管，可以直接请求相对路径的文件
             const response = await fetch('./' + fileName);
-            if (!response.ok) {
-                throw new Error(`找不到文件 "${fileName}"，请确认您已将其上传至服务器(GitHub)。`);
-            }
+            if (!response.ok) throw new Error(`找不到文件 "${fileName}"，可能刚上传还未生效。`);
             
             const arrayBuffer = await response.arrayBuffer();
             const workbook = XLSX.read(arrayBuffer, {type: 'array'});
             processWorkbook(workbook, fileName);
-
-            inputObj.value = ''; // 清空输入框
+            
         } catch (error) {
             console.error(error);
-            alert("❌ 失败：\n" + error.message);
+            alert("❌ 导入失败：\n" + error.message);
         } finally {
             btnObj.innerText = "下载导入";
             btnObj.disabled = false;
@@ -512,7 +570,7 @@
         e.target.value = '';
     }
 
-    // 处理 Excel 的公共逻辑
+    // 处理 Excel 的公共逻辑 (已包含“盒子名称”修复 和 纯数字崩溃修复)
     function processWorkbook(workbook, originalName) {
         const firstSheet = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheet];
@@ -524,15 +582,15 @@
             let sysQty = parseInt(row['数量'] || row['账面数量'] || row['库存']) || 0;
             return {
                 id: idx,
-                name: row['产品名称'] || row['商品名称'] || row['名称'] || '',
-                sku: row['SKU'] || row['SKU规格'] || row['规格'] || '',
-                package: row['分装'] || row['包装'] || '',
-                price: row['售价'] || row['单价'] || row['价格'] || '',
-                img: row['图片链接'] || row['图片'] || row['主图'] || '',
-                imgNote: row['图片说明'] || '',
+                name: String(row['产品名称'] || row['商品名称'] || row['名称'] || row['盒子名称'] || ''),
+                sku: String(row['SKU'] || row['SKU规格'] || row['规格'] || ''),
+                package: String(row['分装'] || row['包装'] || ''),
+                price: String(row['售价'] || row['单价'] || row['价格'] || ''),
+                img: String(row['图片链接'] || row['图片'] || row['主图'] || ''),
+                imgNote: String(row['图片说明'] || ''),
                 sysQty: sysQty, realQty: sysQty, status: 'pending'
             };
-        }).filter(item => item.name !== '' || item.sku !== ''); // 过滤空行
+        }).filter(item => item.name.trim() !== '' || item.sku.trim() !== ''); // 过滤空行
 
         const fileNameBase = originalName.replace(/\.[^/.]+$/, "");
         const newEvent = {
