@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>货品盘点与清单系统</title>
+    <title>集市撤展结算与盘点系统</title>
     <!-- 防盗链关键头 -->
     <meta name="referrer" content="no-referrer">
     <!-- 引入 SheetJS 用于解析 Excel -->
@@ -25,17 +25,20 @@
             background: #eff6ff; color: #2563eb; border: none; padding: 6px 12px;
             border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer;
         }
+        
+        /* 顶部统计面板重新设计 */
         .stats-summary { display: flex; gap: 8px; font-size: 12px; margin-bottom: 10px; }
         .stat-badge { flex: 1; padding: 6px; background: #f1f5f9; border-radius: 6px; text-align: center; color: #475569; }
-        .stat-badge b { font-size: 14px; display: block; color: #1e293b; }
-        .stat-badge.warn b { color: #e11d48; }
-        .stat-badge.success b { color: #059669; }
+        .stat-badge b { font-size: 14px; display: block; color: #1e293b; margin-top: 2px;}
+        .stat-badge.pending b { color: #e11d48; } /* 待盘点（递减）用红色提醒 */
+        .stat-badge.completed b { color: #059669; } /* 已盘点用绿色 */
+        .stat-badge.sales b { color: #ea580c; font-size: 15px; } /* 总售出用显眼的橙色 */
 
         .search-box {
             width: 100%; padding: 10px 14px; font-size: 15px; border: 1px solid #e2e8f0;
             border-radius: 8px; outline: none; background: #f8fafc; margin-bottom: 8px;
         }
-        .filter-tabs { display: flex; gap: 6px; overflow-x: auto; }
+        .filter-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
         .tab-btn {
             padding: 6px 12px; font-size: 12px; background: #f1f5f9; border: none;
             border-radius: 20px; color: #64748b; white-space: nowrap; cursor: pointer;
@@ -59,9 +62,11 @@
             gap: 10px; border-left: 4px solid #cbd5e1; transition: opacity 0.3s ease, transform 0.3s ease;
         }
         .card.hiding { opacity: 0; transform: scale(0.95); }
-        .card.diff-less { border-left-color: #f43f5e; background: #fff1f2; }
-        .card.diff-more { border-left-color: #10b981; background: #f0fdf4; }
-        .card.diff-equal { border-left-color: #3b82f6; }
+        
+        /* 针对集市售出逻辑重写颜色 */
+        .card.diff-sold { border-left-color: #10b981; background: #f0fdf4; } /* 卖出了，绿色 */
+        .card.diff-error { border-left-color: #f43f5e; background: #fff1f2; } /* 数量异常多出，红色 */
+        .card.diff-equal { border-left-color: #cbd5e1; } /* 没卖出，灰色 */
         
         .card-header { display: flex; align-items: center; gap: 10px; }
         .card-thumb {
@@ -70,7 +75,7 @@
         }
         .card-thumb-placeholder {
             width: 60px; height: 60px; border-radius: 6px; background: #f8fafc; border: 1px dashed #cbd5e1;
-            display: flex; align-items: center; justify-content: center; font-size: 11px; color: #94a3b8;
+            display: flex; align-items: center; justify-content: center; font-size: 11px; color: #94a3b8; text-align: center;
         }
         .card-info { flex: 1; min-width: 0; }
         .card-title { font-size: 15px; font-weight: 600; color: #1e293b; }
@@ -90,16 +95,17 @@
         }
         .input-counter {
             width: 52px; height: 32px; text-align: center; font-size: 14px; font-weight: bold;
-            border: 1px solid #cbd5e1; border-radius: 6px; outline: none;
+            border: 1px solid #cbd5e1; border-radius: 6px; outline: none; color: #2563eb;
         }
-        .diff-tag { font-size: 11px; font-weight: bold; padding: 2px 6px; border-radius: 4px; }
-        .tag-less { background: #fecdd3; color: #9f1239; }
-        .tag-more { background: #a7f3d0; color: #065f46; }
-        .tag-equal { background: #e2e8f0; color: #475569; }
+        
+        .diff-tag { font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 6px; }
+        .tag-sold { background: #d1fae5; color: #065f46; } /* 售出 */
+        .tag-error { background: #ffe4e6; color: #9f1239; } /* 异常 */
+        .tag-equal { background: #f1f5f9; color: #64748b; } /* 未售 */
 
         .finish-btn {
-            width: 100%; padding: 10px; border: none; border-radius: 8px; background: #f1f5f9;
-            color: #3b82f6; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.3s;
+            width: 100%; padding: 10px; border: none; border-radius: 8px; background: #eff6ff;
+            color: #2563eb; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.3s;
         }
         .finish-btn.completing { background: #10b981 !important; color: white !important; }
 
@@ -145,7 +151,6 @@
 
         .mp-footer { padding: 16px; border-top: 1px solid #e2e8f0; background: #fff; display: flex; flex-direction: column; gap: 12px; }
         
-        /* 云端拉取区域样式修改 */
         .cloud-fetch-box {
             display: flex; gap: 8px; background: #f1f5f9; padding: 10px; border-radius: 8px; border: 1px dashed #cbd5e1;
         }
@@ -169,37 +174,39 @@
 
 <div class="header">
     <div class="title-row">
-        <div class="title">📦 <span id="currentEventNameDisplay">读取中...</span></div>
+        <div class="title">🛒 <span id="currentEventNameDisplay">读取中...</span></div>
         <button class="btn-manage" onclick="openManager()">⚙️ 管理集市</button>
     </div>
 
+    <!-- 重新设计的进度大盘，完全符合撤展进度流 -->
     <div class="stats-summary">
-        <div class="stat-badge">总SKU<b id="statTotal">0</b></div>
-        <div class="stat-badge success">正常/已盘<b id="statMatch">0</b></div>
-        <div class="stat-badge warn">缺货<b id="statLess">0</b></div>
-        <div class="stat-badge">多盘<b id="statMore">0</b></div>
+        <div class="stat-badge">总款式<b id="statTotal">0</b></div>
+        <div class="stat-badge pending">⏳ 待盘点<b id="statPending">0</b></div>
+        <div class="stat-badge completed">✅ 已盘点<b id="statCompleted">0</b></div>
+        <div class="stat-badge sales">💰 总售出件数<b id="statSoldTotal">0</b></div>
     </div>
 
     <input type="text" id="searchInput" class="search-box" placeholder="🔍 搜索产品名称、SKU规格..." oninput="renderMain()">
 
+    <!-- 根据集市售出逻辑重命名 Tabs -->
     <div class="filter-tabs">
-        <button class="tab-btn active" onclick="setFilter('all', this)">全部</button>
-        <button class="tab-btn" onclick="setFilter('diff', this)">⚠️ 仅看差异</button>
-        <button class="tab-btn" onclick="setFilter('less', this)">🔻 仅看缺货</button>
-        <button class="tab-btn" onclick="setFilter('more', this)">🔺 仅看多货</button>
+        <button class="tab-btn active" onclick="setFilter('all', this)">全部商品</button>
+        <button class="tab-btn" onclick="setFilter('sold', this)">📈 仅看有售出</button>
+        <button class="tab-btn" onclick="setFilter('unsold', this)">⏸️ 仅看未售出</button>
+        <button class="tab-btn" onclick="setFilter('anomaly', this)">⚠️ 异常(盘多)</button>
     </div>
 </div>
 
 <div class="main-tabs">
-    <button id="tabPending" class="main-tab active" onclick="switchMainTab('pending')">未盘点</button>
-    <button id="tabCompleted" class="main-tab" onclick="switchMainTab('completed')">已盘点</button>
+    <button id="tabPending" class="main-tab active" onclick="switchMainTab('pending')">待盘点明细</button>
+    <button id="tabCompleted" class="main-tab" onclick="switchMainTab('completed')">已盘点明细</button>
 </div>
 
 <div id="cardView" class="card-list"></div>
 
 <div class="bottom-bar">
-    <button class="btn-action btn-reset" onclick="resetCurrentCounts()">↺ 重置数据</button>
-    <button class="btn-action btn-excel" onclick="exportCurrentReport()">📤 导出报告(CSV)</button>
+    <button class="btn-action btn-reset" onclick="resetCurrentCounts()">↺ 一键重置</button>
+    <button class="btn-action btn-excel" onclick="exportCurrentReport()">📤 导出销量盘点表(CSV)</button>
 </div>
 
 <!-- 图片预览弹窗 -->
@@ -213,17 +220,14 @@
 <div id="managerModal" class="modal">
     <div class="manager-panel">
         <div class="mp-header">
-            <div class="mp-title">⚙️ 集市与数据管理</div>
+            <div class="mp-title">⚙️ 集市数据管理</div>
             <div class="mp-close" onclick="closeManager()">✖</div>
         </div>
-        <div class="mp-list" id="eventListContainer">
-            <!-- 动态渲染集市列表 -->
-        </div>
+        <div class="mp-list" id="eventListContainer"></div>
         <div class="mp-footer">
             
-            <div style="font-size: 13px; font-weight: bold; color: #1e293b;">☁️ 从 GitHub 仓库一键导入</div>
+            <div style="font-size: 13px; font-weight: bold; color: #1e293b;">☁️ 从 GitHub 仓库一键获取新集市</div>
             <div class="cloud-fetch-box">
-                <!-- 这里改为了下拉选择框 -->
                 <select id="cloudFileSelect" class="cloud-select">
                     <option value="">正在读取仓库文件...</option>
                 </select>
@@ -233,7 +237,7 @@
             <div style="text-align: center; color: #cbd5e1; font-size: 12px; margin: 4px 0;">— 或者 —</div>
 
             <label class="btn-upload">
-                📂 盘点员无需点击：本地测试导入 Excel
+                📂 无需网络：本地测试导入 Excel
                 <input type="file" id="excelFileInput" accept=".xlsx, .xls" onchange="handleLocalExcelUpload(event)">
             </label>
         </div>
@@ -242,14 +246,14 @@
 
 <script>
     // ==========================================
-    // ⚠️ 请在这里配置你的 GitHub 仓库信息！⚠️
+    // Github 仓库配置信息
     // ==========================================
-    const GITHUB_USER = 'daiweissw-creator';   // 例如：'zhangsan'
-    const GITHUB_REPO = 'my';       // 例如：'inventory-system'
+    const GITHUB_USER = 'daiweissw-creator';
+    const GITHUB_REPO = 'my';
     // ==========================================
 
     let appData = { events: [], currentId: null };
-    const STORAGE_KEY = 'inventory_app_v5';
+    const STORAGE_KEY = 'inventory_app_v7'; // 更新以重置缓存适配新结构
 
     function initApp() {
         try {
@@ -265,7 +269,6 @@
         if (!appData.currentId && appData.events.length > 0) {
             appData.currentId = appData.events[0].id;
         }
-
         refreshView();
     }
 
@@ -300,48 +303,72 @@
         if (!currentEvent) {
             document.getElementById('cardView').innerHTML = `<div style="text-align:center; padding:40px; color:#94a3b8;">暂无数据，请点击右上角「管理集市」获取</div>`;
             document.getElementById('statTotal').innerText = 0;
-            document.getElementById('statMatch').innerText = 0;
-            document.getElementById('statLess').innerText = 0;
-            document.getElementById('statMore').innerText = 0;
+            document.getElementById('statPending').innerText = 0;
+            document.getElementById('statCompleted').innerText = 0;
+            document.getElementById('statSoldTotal').innerText = 0;
             return;
         }
 
         const stockData = currentEvent.data;
         const query = document.getElementById('searchInput').value.trim().toLowerCase();
         
-        let match = 0, less = 0, more = 0;
-        stockData.forEach(item => {
-            const diff = item.realQty - item.sysQty;
-            if (diff === 0) match++; else if (diff < 0) less++; else more++;
-        });
-        document.getElementById('statTotal').innerText = stockData.length;
-        document.getElementById('statMatch').innerText = match;
-        document.getElementById('statLess').innerText = less;
-        document.getElementById('statMore').innerText = more;
+        // --- 核心更新：结算逻辑大盘计算 ---
+        let totalSKU = stockData.length;
+        let completedCount = 0;
+        let pendingCount = 0;
+        let totalSoldPieces = 0;
 
+        stockData.forEach(item => {
+            if (item.status === 'completed') completedCount++;
+            else pendingCount++;
+            
+            // 计算售出件数 = 初始数量 - 撤展剩余数量 (且只计算大于0的正常售出)
+            const soldQty = item.sysQty - item.realQty;
+            if (soldQty > 0) {
+                totalSoldPieces += soldQty;
+            }
+        });
+
+        document.getElementById('statTotal').innerText = totalSKU;
+        document.getElementById('statPending').innerText = pendingCount;
+        document.getElementById('statCompleted').innerText = completedCount;
+        document.getElementById('statSoldTotal').innerText = totalSoldPieces;
+
+        // --- 列表过滤逻辑更新 ---
         const filtered = stockData.filter(item => {
             if (item.status !== currentMainTab) return false;
+            
             const matchQuery = (item.name && item.name.toLowerCase().includes(query)) || (item.sku && item.sku.toLowerCase().includes(query));
             if (!matchQuery) return false;
-            const diff = item.realQty - item.sysQty;
-            if (currentFilter === 'diff') return diff !== 0;
-            if (currentFilter === 'less') return diff < 0;
-            if (currentFilter === 'more') return diff > 0;
+            
+            const soldQty = item.sysQty - item.realQty;
+            if (currentFilter === 'sold') return soldQty > 0;
+            if (currentFilter === 'unsold') return soldQty === 0;
+            if (currentFilter === 'anomaly') return soldQty < 0; // 异常多出
             return true;
         });
 
         const cardView = document.getElementById('cardView');
         if (filtered.length === 0) {
-            const msg = currentMainTab === 'pending' ? '没有符合条件的未盘点商品 🎉' : '还没有已盘点的商品';
+            const msg = currentMainTab === 'pending' ? '太棒了，待盘点的商品已全部完成 🎉' : '暂无已盘点商品';
             cardView.innerHTML = `<div style="text-align:center; padding:40px; color:#94a3b8; font-size:14px;">${msg}</div>`;
             return;
         }
 
         cardView.innerHTML = filtered.map(item => {
-            const diff = item.realQty - item.sysQty;
-            let cardClass = 'card diff-equal'; let diffTag = `<span class="diff-tag tag-equal">无差异</span>`;
-            if (diff < 0) { cardClass = 'card diff-less'; diffTag = `<span class="diff-tag tag-less">少 ${Math.abs(diff)}</span>`; }
-            else if (diff > 0) { cardClass = 'card diff-more'; diffTag = `<span class="diff-tag tag-more">多 ${diff}</span>`; }
+            // 集市结算逻辑核心：售出量 = 带来的 - 剩下的
+            const soldQty = item.sysQty - item.realQty;
+            
+            let cardClass = 'card diff-equal'; 
+            let diffTag = `<span class="diff-tag tag-equal">未售出</span>`;
+
+            if (soldQty > 0) {
+                cardClass = 'card diff-sold'; 
+                diffTag = `<span class="diff-tag tag-sold">🎉 售出 ${soldQty} 件</span>`;
+            } else if (soldQty < 0) {
+                cardClass = 'card diff-error'; 
+                diffTag = `<span class="diff-tag tag-error">⚠️ 异常多出 ${Math.abs(soldQty)} 件</span>`;
+            }
 
             const hasImg = item.img && item.img.trim().length > 0;
             let imgHtml = hasImg 
@@ -350,7 +377,7 @@
 
             let finishBtnHtml = currentMainTab === 'pending'
                 ? `<button class="finish-btn" onclick="markCompleted(${item.id}, this)">盘点完毕</button>`
-                : `<button class="finish-btn" style="color:#94a3b8; background:transparent; border:1px solid #e2e8f0; font-weight:normal;" onclick="undoCompleted(${item.id}, this)">⟲ 撤销，移回未盘点</button>`;
+                : `<button class="finish-btn" style="color:#94a3b8; background:transparent; border:1px dashed #cbd5e1; font-weight:normal;" onclick="undoCompleted(${item.id}, this)">⟲ 取消盘点，移回上一步</button>`;
 
             return `
                 <div class="${cardClass}" id="card-${item.id}">
@@ -359,12 +386,13 @@
                         <div class="card-info">
                             <div class="card-title">${escapeHtml(item.name)}</div>
                             <div class="card-sku">SKU: ${escapeHtml(item.sku)}</div>
-                            <div class="card-meta">包装: ${escapeHtml(item.package||'-')} | 售价: ${escapeHtml(item.price||'-')}</div>
+                            <div class="card-meta">售价: ${escapeHtml(item.price||'-')} | 包装: ${escapeHtml(item.package||'-')}</div>
                         </div>
                     </div>
                     <div class="stock-control-row">
-                        <div class="system-qty">账面: <b>${item.sysQty}</b></div>
+                        <div class="system-qty">带来初始: <b>${item.sysQty}</b></div>
                         <div class="counter-box">
+                            <span style="font-size:12px; color:#64748b; margin-right:4px;">撤展剩余:</span>
                             <button class="btn-counter" onclick="adjustQty(${item.id}, -1)">-</button>
                             <input type="number" class="input-counter" value="${item.realQty}" onchange="setQty(${item.id}, this.value)">
                             <button class="btn-counter" onclick="adjustQty(${item.id}, 1)">+</button>
@@ -382,7 +410,11 @@
         const item = ev.data.find(x => x.id === id);
         if(item) { updater(item); saveApp(); renderMain(); }
     }
-    function adjustQty(id, delta) { updateItemData(id, (item) => item.realQty = Math.max(0, item.realQty + delta)); }
+    
+    function adjustQty(id, delta) { 
+        updateItemData(id, (item) => item.realQty = Math.max(0, item.realQty + delta)); 
+    }
+    
     function setQty(id, val) {
         updateItemData(id, (item) => {
             const num = parseInt(val);
@@ -391,39 +423,47 @@
     }
 
     function markCompleted(id, btn) {
-        btn.innerText = "已盘点 ✓"; btn.classList.add('completing'); btn.disabled = true;
+        btn.innerText = "已记录 ✓"; btn.classList.add('completing'); btn.disabled = true;
         setTimeout(() => {
             const card = document.getElementById(`card-${id}`);
             if (card) card.classList.add('hiding');
-            setTimeout(() => { updateItemData(id, item => item.status = 'completed'); }, 300);
-        }, 1200);
+            setTimeout(() => { updateItemData(id, item => item.status = 'completed'); }, 250);
+        }, 600);
     }
+    
     function undoCompleted(id) {
         const card = document.getElementById(`card-${id}`);
         if (card) card.classList.add('hiding');
-        setTimeout(() => { updateItemData(id, item => item.status = 'pending'); }, 300);
+        setTimeout(() => { updateItemData(id, item => item.status = 'pending'); }, 250);
     }
 
     function resetCurrentCounts() {
         const ev = getCurrentEvent(); if (!ev) return;
-        if (confirm(`确认将集市【${ev.name}】的所有实盘数量重置为账面数量吗？\n(所有已盘点的状态也会重置)`)) {
-            ev.data.forEach(item => { item.realQty = item.sysQty; item.status = 'pending'; });
+        if (confirm(`确认要重置【${ev.name}】吗？\n警告：所有填写的剩余数量将被重置，所有数据退回未盘点！`)) {
+            ev.data.forEach(item => { 
+                item.realQty = item.sysQty; 
+                // 核心逻辑保留：哪怕重置了，带来数量本身就是 0 的，不用盘点，直接进完成区
+                item.status = (item.sysQty === 0) ? 'completed' : 'pending'; 
+            });
             saveApp(); renderMain();
         }
     }
 
     function exportCurrentReport() {
         const ev = getCurrentEvent(); if (!ev) { alert('没有可导出的数据'); return; }
-        let csvContent = "\uFEFF产品名称,SKU规格,包装,售价,账面数量,实盘数量,差异(盈亏),盘点进度状态\n";
+        
+        // 导出的标题修改为集市销量结算专属
+        let csvContent = "\uFEFF产品名称,SKU规格,包装,售价,初始带来数量,撤展剩余数量,实际售出数量,盘点进度状态\n";
+        
         ev.data.forEach(item => {
-            const diff = item.realQty - item.sysQty;
-            let diffStatus = diff < 0 ? '盘亏(缺货)' : (diff > 0 ? '盘盈(多出)' : '正常');
+            const soldQty = item.sysQty - item.realQty;
+            let diffStatus = soldQty > 0 ? '正常售出' : (soldQty < 0 ? '数据异常(剩下比带来多)' : '未售出');
             const progress = item.status === 'completed' ? '已盘点' : '未盘点';
-            csvContent += `"${item.name||''}","${item.sku||''}","${item.package||''}","${item.price||''}",${item.sysQty},${item.realQty},${diff},"${diffStatus} - ${progress}"\n`;
+            csvContent += `"${item.name||''}","${item.sku||''}","${item.package||''}","${item.price||''}",${item.sysQty},${item.realQty},${soldQty},"${diffStatus} - ${progress}"\n`;
         });
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-        a.download = `${ev.name}_盘点报告_${new Date().toLocaleDateString()}.csv`;
+        a.download = `${ev.name}_销量结算表_${new Date().toLocaleDateString()}.csv`;
         a.click();
     }
 
@@ -433,7 +473,6 @@
     function openManager() { 
         renderManagerList(); 
         managerModal.style.display = 'flex'; 
-        // 每次打开管理面板时，自动拉取最新仓库列表
         loadCloudFileList(); 
     }
     
@@ -447,8 +486,8 @@
         }
         container.innerHTML = appData.events.map(ev => {
             const isActive = ev.id === appData.currentId;
-            const badge = isActive ? `<span class="ev-badge">当前使用</span>` : '';
-            const useBtn = isActive ? '' : `<button class="ev-btn btn-use" onclick="switchEvent('${ev.id}')">使用</button>`;
+            const badge = isActive ? `<span class="ev-badge">当前进行中</span>` : '';
+            const useBtn = isActive ? '' : `<button class="ev-btn btn-use" onclick="switchEvent('${ev.id}')">切换此表</button>`;
             return `
                 <div class="event-item ${isActive ? 'active-event' : ''}">
                     <div class="ev-head"><div class="ev-name">${escapeHtml(ev.name)} ${badge}</div></div>
@@ -467,13 +506,13 @@
     
     function renameEvent(id) {
         const ev = appData.events.find(e => e.id === id); if (!ev) return;
-        const newName = prompt('请输入新的集市名称：', ev.name);
+        const newName = prompt('修改集市名称：', ev.name);
         if (newName && newName.trim()) { ev.name = newName.trim(); saveApp(); renderManagerList(); refreshView(); }
     }
     
     function deleteEvent(id) {
         const ev = appData.events.find(e => e.id === id);
-        if (!confirm(`确定要删除集市【${ev.name}】吗？删除后不可恢复！`)) return;
+        if (!confirm(`确定要删除【${ev.name}】的全部盘点数据吗？删除后不可恢复！`)) return;
         appData.events = appData.events.filter(e => e.id !== id);
         if (appData.currentId === id) { appData.currentId = appData.events.length > 0 ? appData.events[0].id : null; }
         saveApp(); renderManagerList(); refreshView();
@@ -484,49 +523,40 @@
         const selectObj = document.getElementById('cloudFileSelect');
         const btnObj = document.getElementById('cloudFetchBtn');
         
-        // 如果没有配置用户名，给予提示并禁用按钮
-        if (GITHUB_USER.includes('填入你的')) {
-            selectObj.innerHTML = '<option value="">⚠️ 开发者未配置 GitHub 账号，无法读取</option>';
-            btnObj.disabled = true;
-            return;
-        }
-
         selectObj.innerHTML = '<option value="">🔄 正在获取云端列表...</option>';
-        btnObj.disabled = true; // 加载中先禁用下载按钮
+        btnObj.disabled = true;
 
         try {
-            // 调用 GitHub 免费公开 API
             const url = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/`;
             const response = await fetch(url);
             
+            if (response.status === 403) {
+                throw new Error('Github API 请求频繁被限制，请改用本地上传');
+            }
             if (!response.ok) {
-                throw new Error('获取失败，请确认仓库是否为 Public');
+                throw new Error('获取失败，请确认仓库设置是否公开');
             }
             
             const files = await response.json();
-            
-            // 过滤出 .xlsx 和 .xls 结尾的文件
             const excelFiles = files.filter(f => f.name.endsWith('.xlsx') || f.name.endsWith('.xls'));
             
             if (excelFiles.length === 0) {
-                selectObj.innerHTML = '<option value="">仓库中目前没有上传 Excel 文件</option>';
+                selectObj.innerHTML = '<option value="">仓库中目前没有找到 Excel 文件</option>';
                 return;
             }
 
-            // 渲染下拉选项
             selectObj.innerHTML = excelFiles.map((f, index) => 
                 `<option value="${f.name}" ${index === 0 ? 'selected' : ''}>📄 ${f.name}</option>`
             ).join('');
             
-            btnObj.disabled = false; // 恢复按钮
+            btnObj.disabled = false;
 
         } catch (error) {
             console.error(error);
-            selectObj.innerHTML = `<option value="">❌ 获取列表失败</option>`;
+            selectObj.innerHTML = `<option value="">❌ ${error.message}</option>`;
         }
     }
 
-    // --- 核心：通过下拉框的值下载并导入 ---
     async function fetchCloudExcel() {
         const selectObj = document.getElementById('cloudFileSelect');
         const btnObj = document.getElementById('cloudFetchBtn');
@@ -538,9 +568,8 @@
         btnObj.disabled = true;
 
         try {
-            // 相对路径抓取：既然是在 GitHub Pages 托管，可以直接请求相对路径的文件
             const response = await fetch('./' + fileName);
-            if (!response.ok) throw new Error(`找不到文件 "${fileName}"，可能刚上传还未生效。`);
+            if (!response.ok) throw new Error(`文件获取失败，可能是缓存原因，请刷新网页重试。`);
             
             const arrayBuffer = await response.arrayBuffer();
             const workbook = XLSX.read(arrayBuffer, {type: 'array'});
@@ -555,7 +584,6 @@
         }
     }
 
-    // 保留本地测试上传功能
     function handleLocalExcelUpload(e) {
         const file = e.target.files[0]; if (!file) return;
         const reader = new FileReader();
@@ -570,16 +598,15 @@
         e.target.value = '';
     }
 
-    // 处理 Excel 的公共逻辑 (已包含“盒子名称”修复 和 纯数字崩溃修复)
     function processWorkbook(workbook, originalName) {
         const firstSheet = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheet];
         const jsonRows = XLSX.utils.sheet_to_json(worksheet, {defval: ""});
         
-        if (jsonRows.length === 0) { alert('Excel中没有找到数据'); return; }
+        if (jsonRows.length === 0) { alert('Excel中没有找到数据，请检查文件内容。'); return; }
 
         const newStockData = jsonRows.map((row, idx) => {
-            let sysQty = parseInt(row['数量'] || row['账面数量'] || row['库存']) || 0;
+            let sysQty = parseInt(row['数量'] || row['账面数量'] || row['初始数量']) || 0;
             return {
                 id: idx,
                 name: String(row['产品名称'] || row['商品名称'] || row['名称'] || row['盒子名称'] || ''),
@@ -588,14 +615,17 @@
                 price: String(row['售价'] || row['单价'] || row['价格'] || ''),
                 img: String(row['图片链接'] || row['图片'] || row['主图'] || ''),
                 imgNote: String(row['图片说明'] || ''),
-                sysQty: sysQty, realQty: sysQty, status: 'pending'
+                sysQty: sysQty, 
+                realQty: sysQty, 
+                // 账面数量为0的，直接完成已盘点
+                status: (sysQty === 0) ? 'completed' : 'pending'
             };
-        }).filter(item => item.name.trim() !== '' || item.sku.trim() !== ''); // 过滤空行
+        }).filter(item => item.name.trim() !== '' || item.sku.trim() !== '');
 
         const fileNameBase = originalName.replace(/\.[^/.]+$/, "");
         const newEvent = {
             id: 'evt_' + Date.now(),
-            name: `${fileNameBase} (云端导入)`,
+            name: `${fileNameBase} (云端获取)`,
             data: newStockData
         };
 
@@ -603,11 +633,10 @@
         appData.currentId = newEvent.id;
         saveApp();
         
-        alert(`✅ 成功导入 ${newStockData.length} 条商品记录！`);
+        alert(`✅ 成功导入 ${newStockData.length} 款商品！\n(初始数量为0的商品已自动归入“已盘点”列表)`);
         refreshView(); closeManager();
     }
 
-    // --- 工具 ---
     function openImgModal(src, caption) {
         document.getElementById('modalImg').src = src;
         document.getElementById('modalCaption').innerText = caption;
